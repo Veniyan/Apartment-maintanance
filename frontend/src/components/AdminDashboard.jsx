@@ -770,8 +770,8 @@ function AdminDashboard() {
             case 'messages': return 'Messages';
             case 'payments': return 'Payments';
             case 'expenses': return 'Expense Tracker';
-            case 'reports': return 'Reports & Analytics';
-            case 'settings': return 'System Settings';
+            
+            
             default: return 'Admin Dashboard';
         }
     };
@@ -832,22 +832,6 @@ function AdminDashboard() {
                                 Expense Tracker
                             </button>
                         </li>
-                        <li className="nav-item">
-                            <button
-                                onClick={() => handleNavClick('reports')}
-                                className={`nav-link ${activeSection === 'reports' ? 'active' : ''}`}
-                            >
-                                Reports
-                            </button>
-                        </li>
-                        <li className="nav-item">
-                            <button
-                                onClick={() => handleNavClick('settings')}
-                                className={`nav-link ${activeSection === 'settings' ? 'active' : ''}`}
-                            >
-                                Settings
-                            </button>
-                        </li>
                     </ul>
                 </nav>
             </aside>
@@ -874,3 +858,4 @@ function AdminDashboard() {
 }
 
 export default AdminDashboard;
+
