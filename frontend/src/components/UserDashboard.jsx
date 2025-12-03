@@ -38,6 +38,28 @@ function UserDashboard() {
         }
     };
 
+    const fetchPayments = async (username) => {
+        try {
+            let url = `http://localhost:8081/api/payments/user/${username}`;
+            if (selectedMonth) {
+                url = `http://localhost:8081/api/payments/user/${username}/month/${selectedMonth}`;
+            }
+            const response = await fetch(url);
+            if (response.ok) {
+                const data = await response.json();
+                setPayments(data);
+            }
+        } catch (error) {
+            console.error('Error fetching payments:', error);
+        }
+    };
+
+    useEffect(() => {
+        if (user && activeSection === 'payments') {
+            fetchPayments(user);
+        }
+    }, [user, activeSection, selectedMonth]);
+
     const fetchChatHistory = async () => {
         try {
             const response = await fetch(`http://localhost:8081/api/chat/history/${user}/admin`);
