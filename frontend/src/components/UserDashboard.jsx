@@ -12,6 +12,8 @@ function UserDashboard() {
     const [selectedFile, setSelectedFile] = useState(null);
     const [payments, setPayments] = useState([]);
     const [selectedMonth, setSelectedMonth] = useState(''); // Empty string means "All Months"
+    const [expenses, setExpenses] = useState([]);
+    const [expenseMonth, setExpenseMonth] = useState(new Date().toISOString().slice(0, 7));
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -54,9 +56,23 @@ function UserDashboard() {
         }
     };
 
+    const fetchExpenses = async () => {
+        try {
+            const response = await fetch('http://localhost:8081/api/expenses');
+            if (response.ok) {
+                setExpenses(await response.json());
+            }
+        } catch (error) {
+            console.error('Error fetching expenses:', error);
+        }
+    };
+
     useEffect(() => {
         if (user && activeSection === 'payments') {
             fetchPayments(user);
+        }
+        if (activeSection === 'expenses') {
+            fetchExpenses();
         }
     }, [user, activeSection, selectedMonth]);
 
@@ -439,6 +455,38 @@ function UserDashboard() {
                         </div>
                     </div>
                 );
+            case 'expenses':
+                return (
+                    <div className="content-section">
+                        <h2>Building Expenses</h2>
+                        <div className="table-container">
+                            <table className="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Description</th>
+                                        <th>Amount</th>
+                                        <th>Category</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {expenses.length === 0 ? (
+                                        <tr><td colSpan="4">No expenses recorded.</td></tr>
+                                    ) : (
+                                        expenses.map(e => (
+                                            <tr key={e.id}>
+                                                <td>{e.description}</td>
+                                                <td>₹{e.amount}</td>
+                                                <td>{e.category}</td>
+                                                <td>{e.date}</td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                );
             case 'profile':
                 return (
                     <div className="content-section">
@@ -461,6 +509,7 @@ function UserDashboard() {
             case 'new-request': return 'New Request';
             case 'messages': return 'Messages';
             case 'payments': return 'Payments';
+            case 'expenses': return 'Building Expenses';
             case 'profile': return 'My Profile';
             default: return 'Dashboard';
         }
@@ -512,6 +561,14 @@ function UserDashboard() {
                                 className={`nav-link ${activeSection === 'payments' ? 'active' : ''}`}
                             >
                                 Payments
+                            </button>
+                        </li>
+                        <li className="nav-item">
+                            <button
+                                onClick={() => handleNavClick('expenses')}
+                                className={`nav-link ${activeSection === 'expenses' ? 'active' : ''}`}
+                            >
+                                Building Expenses
                             </button>
                         </li>
                         <li className="nav-item">
