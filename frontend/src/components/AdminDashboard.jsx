@@ -12,6 +12,7 @@ function AdminDashboard() {
     const [selectedFile, setSelectedFile] = useState(null);
     const [payments, setPayments] = useState([]);
     const [newPayment, setNewPayment] = useState({ username: '', month: '', amount: '' });
+    const [newUser, setNewUser] = useState({ username: '', password: '', email: '', role: 'USER' });
 
     // Expense Tracker State
     // Expense Tracker State
@@ -112,6 +113,33 @@ function AdminDashboard() {
             }
         } catch (error) {
             console.error('Error adding expense:', error);
+        }
+    };
+
+    const handleAddUser = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await fetch('http://localhost:8081/api/auth/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newUser)
+            });
+
+            if (response.ok) {
+                alert('User created successfully!');
+                setNewUser({ username: '', password: '', email: '', role: 'USER' });
+                // Refresh user list
+                const usersRes = await fetch('http://localhost:8081/api/users');
+                if (usersRes.ok) {
+                    setUsers(await usersRes.json());
+                }
+            } else {
+                const errorText = await response.text();
+                alert(`Failed to create user: ${errorText}`);
+            }
+        } catch (error) {
+            console.error('Error creating user:', error);
+            alert('Error creating user');
         }
     };
 
@@ -357,7 +385,58 @@ function AdminDashboard() {
                 return (
                     <div className="content-section">
                         <h2>User Management</h2>
-                        <div className="table-container">
+
+                        <div className="form-section">
+                            <h3>Add New User</h3>
+                            <form onSubmit={handleAddUser} className="payment-form">
+                                <div className="form-row">
+                                    <div className="form-group">
+                                        <label>Username</label>
+                                        <input
+                                            type="text"
+                                            value={newUser.username}
+                                            onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Password</label>
+                                        <input
+                                            type="password"
+                                            value={newUser.password}
+                                            onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Email</label>
+                                        <input
+                                            type="email"
+                                            value={newUser.email}
+                                            onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Role</label>
+                                        <select
+                                            value={newUser.role}
+                                            onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                                        >
+                                            <option value="USER">User</option>
+                                            <option value="ADMIN">Admin</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <button type="submit" className="btn btn-primary" style={{ marginTop: '24px' }}>Add User</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <div className="table-container" style={{ marginTop: '30px' }}>
+                            <h3>Current Users</h3>
+
                             <table className="data-table">
                                 <thead>
                                     <tr>
@@ -770,8 +849,8 @@ function AdminDashboard() {
             case 'messages': return 'Messages';
             case 'payments': return 'Payments';
             case 'expenses': return 'Expense Tracker';
-            
-            
+
+
             default: return 'Admin Dashboard';
         }
     };
