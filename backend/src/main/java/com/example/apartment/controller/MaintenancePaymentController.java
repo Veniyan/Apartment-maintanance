@@ -6,6 +6,7 @@ import com.example.apartment.repository.MaintenancePaymentRepository;
 import com.example.apartment.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -31,7 +32,14 @@ public class MaintenancePaymentController {
     }
 
     @GetMapping("/user/{username}")
-    public ResponseEntity<List<MaintenancePayment>> getPaymentsByUser(@PathVariable String username) {
+    public ResponseEntity<?> getPaymentsByUser(@PathVariable String username, Authentication authentication) {
+        String loggedInUser = authentication.getName();
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));
+        if (!isAdmin && !loggedInUser.equals(username)) {
+            return ResponseEntity.status(403).body("You can only view your own payments");
+        }
+
         User user = userRepository.findByUsername(username).orElse(null);
         if (user == null) {
             return ResponseEntity.notFound().build();
@@ -40,8 +48,15 @@ public class MaintenancePaymentController {
     }
 
     @GetMapping("/user/{username}/month/{month}")
-    public ResponseEntity<List<MaintenancePayment>> getPaymentsByUserAndMonth(@PathVariable String username,
-            @PathVariable String month) {
+    public ResponseEntity<?> getPaymentsByUserAndMonth(@PathVariable String username,
+            @PathVariable String month, Authentication authentication) {
+        String loggedInUser = authentication.getName();
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));
+        if (!isAdmin && !loggedInUser.equals(username)) {
+            return ResponseEntity.status(403).body("You can only view your own payments");
+        }
+
         User user = userRepository.findByUsername(username).orElse(null);
         if (user == null) {
             return ResponseEntity.notFound().build();

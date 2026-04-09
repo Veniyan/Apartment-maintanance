@@ -5,6 +5,15 @@ function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [passwordForm, setPasswordForm] = useState({
+    username: '',
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [passwordMessage, setPasswordMessage] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -20,10 +29,18 @@ function Login() {
         body: JSON.stringify({ username, password }),
       });
 
-      const data = await response.json();
+      const contentType = response.headers.get('content-type') || '';
+      const hasJsonBody = contentType.includes('application/json');
+      const data = hasJsonBody ? await response.json() : null;
 
       if (response.ok) {
-        // Store user info and role in localStorage
+        if (!data?.token) {
+          setError('Login failed: server did not return a valid login response.');
+          return;
+        }
+
+        // Store JWT token and user info
+        localStorage.setItem('token', data.token);
         localStorage.setItem('user', data.username);
         localStorage.setItem('email', data.email);
         localStorage.setItem('role', data.role);
@@ -35,10 +52,64 @@ function Login() {
           navigate('/dashboard');
         }
       } else {
-        setError(typeof data === 'string' ? data : 'Invalid credentials. Please try again.');
+        if (response.status === 403) {
+          setError('Login is being blocked by the backend. Please restart the backend and try again.');
+          return;
+        }
+
+        if (typeof data === 'string' && data.trim()) {
+          setError(data);
+        } else if (data?.message) {
+          setError(data.message);
+        } else {
+          setError('Invalid credentials. Please try again.');
+        }
       }
     } catch (err) {
       setError('Unable to connect to server. Please try again later.');
+      console.error('Login error:', err);
+    }
+  };
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    setPasswordMessage('');
+    setPasswordError('');
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('New password and confirm password do not match.');
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:8081/api/auth/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: passwordForm.username,
+          oldPassword: passwordForm.oldPassword,
+          newPassword: passwordForm.newPassword,
+        }),
+      });
+
+      const text = await response.text();
+
+      if (response.ok) {
+        setPasswordMessage(text || 'Password updated successfully.');
+        setPasswordForm({
+          username: '',
+          oldPassword: '',
+          newPassword: '',
+          confirmPassword: '',
+        });
+      } else {
+        setPasswordError(text || 'Unable to update password.');
+      }
+    } catch (err) {
+      setPasswordError('Unable to connect to server. Please try again later.');
+      console.error('Password change error:', err);
     }
   };
 
@@ -81,6 +152,81 @@ function Login() {
             Sign In
           </button>
         </form>
+
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ marginTop: '12px', width: '100%' }}
+          onClick={() => {
+            setShowPasswordReset((value) => !value);
+            setPasswordMessage('');
+            setPasswordError('');
+          }}
+        >
+          Forgot / Change Password
+        </button>
+
+        {showPasswordReset && (
+          <div style={{ marginTop: '20px', borderTop: '1px solid #ddd', paddingTop: '20px' }}>
+            <h3 style={{ marginBottom: '12px' }}>Change Password</h3>
+            {passwordMessage && <div className="success-message">{passwordMessage}</div>}
+            {passwordError && <div className="error-message">{passwordError}</div>}
+
+            <form onSubmit={handlePasswordChange}>
+              <div className="form-group">
+                <label htmlFor="reset-username">Username</label>
+                <input
+                  type="text"
+                  id="reset-username"
+                  value={passwordForm.username}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, username: e.target.value })}
+                  placeholder="Enter your username"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="old-password">Old Password</label>
+                <input
+                  type="password"
+                  id="old-password"
+                  value={passwordForm.oldPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, oldPassword: e.target.value })}
+                  placeholder="Enter your current password"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="new-password">New Password</label>
+                <input
+                  type="password"
+                  id="new-password"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                  placeholder="Enter your new password"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="confirm-password">Confirm New Password</label>
+                <input
+                  type="password"
+                  id="confirm-password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                  placeholder="Confirm your new password"
+                  required
+                />
+              </div>
+
+              <button type="submit" className="btn btn-primary">
+                Update Password
+              </button>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import com.example.apartment.repository.ChatRepository;
 import com.example.apartment.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,7 +24,12 @@ public class ChatController {
 
     @PostMapping("/send")
     public ResponseEntity<?> sendMessage(@RequestBody ChatMessage message, @RequestParam String senderUsername,
-            @RequestParam String recipientUsername) {
+            @RequestParam String recipientUsername, Authentication authentication) {
+        String loggedInUser = authentication.getName();
+        if (!loggedInUser.equals(senderUsername)) {
+            return ResponseEntity.status(403).body("You can only send messages as the logged-in user");
+        }
+
         Optional<User> sender = userRepository.findByUsername(senderUsername);
         Optional<User> recipient = userRepository.findByUsername(recipientUsername);
 
@@ -37,7 +43,13 @@ public class ChatController {
     }
 
     @GetMapping("/history/{user1}/{user2}")
-    public ResponseEntity<?> getChatHistory(@PathVariable String user1, @PathVariable String user2) {
+    public ResponseEntity<?> getChatHistory(@PathVariable String user1, @PathVariable String user2,
+            Authentication authentication) {
+        String loggedInUser = authentication.getName();
+        if (!loggedInUser.equals(user1) && !loggedInUser.equals(user2)) {
+            return ResponseEntity.status(403).body("You can only view conversations you are part of");
+        }
+
         Optional<User> u1 = userRepository.findByUsername(user1);
         Optional<User> u2 = userRepository.findByUsername(user2);
 

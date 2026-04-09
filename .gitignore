@@ -36,5 +36,6 @@ Thumbs.db
 backend/uploads/
 
 # Environment
-.env
+*.env
 .env.local
+.aider*

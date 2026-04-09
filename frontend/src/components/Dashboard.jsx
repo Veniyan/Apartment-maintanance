@@ -2,16 +2,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 function Dashboard() {
-    const [user, setUser] = useState('');
+    const [user] = useState(() => localStorage.getItem('user') || '');
     const [activeSection, setActiveSection] = useState('dashboard');
     const navigate = useNavigate();
 
     useEffect(() => {
-        const storedUser = localStorage.getItem('user');
-        if (!storedUser) {
+        if (!localStorage.getItem('user')) {
             navigate('/');
-        } else {
-            setUser(storedUser);
         }
     }, [navigate]);
 

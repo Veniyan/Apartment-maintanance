@@ -1,13 +1,16 @@
 package com.example.apartment.controller;
 
+import com.example.apartment.dto.StatusUpdateRequest;
 import com.example.apartment.model.MaintenanceRequest;
 import com.example.apartment.model.User;
 import com.example.apartment.repository.MaintenanceRepository;
 import com.example.apartment.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,7 +25,16 @@ public class MaintenanceController {
     private UserRepository userRepository;
 
     @PostMapping
-    public ResponseEntity<?> createRequest(@RequestBody MaintenanceRequest request, @RequestParam String username) {
+    public ResponseEntity<?> createRequest(@RequestBody MaintenanceRequest request, @RequestParam String username,
+            Authentication authentication) {
+        String loggedInUser = authentication.getName();
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));
+
+        if (!isAdmin && !loggedInUser.equals(username)) {
+            return ResponseEntity.status(403).body("You can only create requests for your own account");
+        }
+
         Optional<User> user = userRepository.findByUsername(username);
         if (user.isEmpty()) {
             return ResponseEntity.badRequest().body("User not found");
@@ -37,7 +49,15 @@ public class MaintenanceController {
     }
 
     @GetMapping("/user/{username}")
-    public ResponseEntity<?> getUserRequests(@PathVariable String username) {
+    public ResponseEntity<?> getUserRequests(@PathVariable String username, Authentication authentication) {
+        String loggedInUser = authentication.getName();
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));
+
+        if (!isAdmin && !loggedInUser.equals(username)) {
+            return ResponseEntity.status(403).body("You can only view your own requests");
+        }
+
         Optional<User> user = userRepository.findByUsername(username);
         if (user.isEmpty()) {
             return ResponseEntity.badRequest().body("User not found");
@@ -46,13 +66,23 @@ public class MaintenanceController {
     }
 
     @PutMapping("/{id}/status")
-    public ResponseEntity<?> updateStatus(@PathVariable Long id, @RequestBody String status) {
-        Optional<MaintenanceRequest> request = maintenanceRepository.findById(id);
-        if (request.isEmpty()) {
+    public ResponseEntity<?> updateStatus(@PathVariable Long id, @RequestBody StatusUpdateRequest statusUpdate) {
+        Optional<MaintenanceRequest> maintenanceRequestOptional = maintenanceRepository.findById(id);
+        if (maintenanceRequestOptional.isEmpty()) {
             return ResponseEntity.badRequest().body("Request not found");
         }
-        MaintenanceRequest maintenanceRequest = request.get();
-        maintenanceRequest.setStatus(status);
+
+        if (statusUpdate.getStatus() == null || statusUpdate.getStatus().isBlank()) {
+            return ResponseEntity.badRequest().body("Status is required");
+        }
+
+        MaintenanceRequest maintenanceRequest = maintenanceRequestOptional.get();
+        maintenanceRequest.setStatus(statusUpdate.getStatus().trim());
+        if ("COMPLETED".equalsIgnoreCase(statusUpdate.getStatus().trim())) {
+            maintenanceRequest.setCompletionDate(LocalDateTime.now());
+        } else {
+            maintenanceRequest.setCompletionDate(null);
+        }
         return ResponseEntity.ok(maintenanceRepository.save(maintenanceRequest));
     }
 }

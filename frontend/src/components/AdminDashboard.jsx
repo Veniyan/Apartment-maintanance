@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { api, isAuthenticated, logout } from '../utils/api';
 
 function AdminDashboard() {
-    const [user, setUser] = useState('');
+    const [user] = useState(() => localStorage.getItem('user') || '');
     const [activeSection, setActiveSection] = useState('dashboard');
     const [allRequests, setAllRequests] = useState([]);
     const [users, setUsers] = useState([]);
@@ -12,7 +13,7 @@ function AdminDashboard() {
     const [selectedFile, setSelectedFile] = useState(null);
     const [payments, setPayments] = useState([]);
     const [newPayment, setNewPayment] = useState({ username: '', month: '', amount: '' });
-    const [newUser, setNewUser] = useState({ username: '', password: '', email: '', role: 'USER' });
+    const [newUser, setNewUser] = useState({ username: '', email: '', role: 'USER' });
 
     // Expense Tracker State
     // Expense Tracker State
@@ -23,23 +24,11 @@ function AdminDashboard() {
 
     const navigate = useNavigate();
 
-    useEffect(() => {
-        const storedUser = localStorage.getItem('user');
-        const storedRole = localStorage.getItem('role');
-
-        if (!storedUser || storedRole !== 'ADMIN') {
-            navigate('/');
-        } else {
-            setUser(storedUser);
-            fetchData();
-        }
-    }, [navigate]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             const [requestsRes, usersRes] = await Promise.all([
-                fetch('http://localhost:8081/api/maintenance'),
-                fetch('http://localhost:8081/api/users')
+                api.get('/maintenance'),
+                api.get('/users')
             ]);
 
             if (requestsRes.ok) {
@@ -51,62 +40,76 @@ function AdminDashboard() {
         } catch (error) {
             console.error('Error fetching data:', error);
         }
-    };
+    }, []);
 
-    const fetchChatHistory = async (targetUser) => {
+    const fetchChatHistory = useCallback(async (targetUser) => {
+        if (!targetUser || !user) return;
+
         try {
-            const response = await fetch(`http://localhost:8081/api/chat/history/${user}/${targetUser}`);
+            const response = await api.get(`/chat/history/${user}/${targetUser}`);
             if (response.ok) {
                 setChatMessages(await response.json());
             }
         } catch (error) {
             console.error('Error fetching chat history:', error);
         }
-    };
+    }, [user]);
 
-    const fetchPayments = async () => {
+    const fetchPayments = useCallback(async () => {
         try {
-            const response = await fetch('http://localhost:8081/api/payments');
+            const response = await api.get('/payments');
             if (response.ok) {
                 setPayments(await response.json());
             }
         } catch (error) {
             console.error('Error fetching payments:', error);
         }
-    };
+    }, []);
 
-    const fetchExpenses = async () => {
+    const fetchExpenses = useCallback(async () => {
         if (!expenseMonth) return;
+
         const [year, month] = expenseMonth.split('-');
         try {
-            const response = await fetch(`http://localhost:8081/api/expenses/month/${year}/${month}`);
+            const response = await api.get(`/expenses/month/${year}/${month}`);
             if (response.ok) {
                 setExpenses(await response.json());
             }
         } catch (error) {
             console.error('Error fetching expenses:', error);
         }
-    };
+    }, [expenseMonth]);
 
-    const fetchAllExpenses = async () => {
+    const fetchAllExpenses = useCallback(async () => {
         try {
-            const response = await fetch('http://localhost:8081/api/expenses');
+            const response = await api.get('/expenses');
             if (response.ok) {
                 setAllExpenses(await response.json());
             }
         } catch (error) {
             console.error('Error fetching all expenses:', error);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        const storedUser = localStorage.getItem('user');
+        const storedRole = localStorage.getItem('role');
+
+        if (!isAuthenticated() || !storedUser || storedRole !== 'ADMIN') {
+            navigate('/');
+        } else {
+            const timeoutId = setTimeout(() => {
+                fetchData();
+            }, 0);
+
+            return () => clearTimeout(timeoutId);
+        }
+    }, [fetchData, navigate]);
 
     const handleAddExpense = async (e) => {
         e.preventDefault();
         try {
-            const response = await fetch('http://localhost:8081/api/expenses', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newExpense)
-            });
+            const response = await api.post('/expenses', newExpense);
             if (response.ok) {
                 setNewExpense({ description: '', amount: '', date: '', category: 'Maintenance' });
                 fetchExpenses();
@@ -119,23 +122,16 @@ function AdminDashboard() {
     const handleAddUser = async (e) => {
         e.preventDefault();
         try {
-            const response = await fetch('http://localhost:8081/api/auth/signup', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newUser)
-            });
+            const response = await api.post('/users', newUser);
+
+            const result = await response.json();
 
             if (response.ok) {
-                alert('User created successfully!');
-                setNewUser({ username: '', password: '', email: '', role: 'USER' });
-                // Refresh user list
-                const usersRes = await fetch('http://localhost:8081/api/users');
-                if (usersRes.ok) {
-                    setUsers(await usersRes.json());
-                }
+                alert(`User created successfully!\nUsername: ${result.username}\nDefault password: ${result.defaultPassword}`);
+                setNewUser({ username: '', email: '', role: 'USER' });
+                await fetchData();
             } else {
-                const errorText = await response.text();
-                alert(`Failed to create user: ${errorText}`);
+                alert(`Failed to create user: ${result.message || 'Unknown error'}`);
             }
         } catch (error) {
             console.error('Error creating user:', error);
@@ -145,16 +141,18 @@ function AdminDashboard() {
 
     useEffect(() => {
         if (activeSection === 'expenses') {
-            fetchExpenses();
-            fetchAllExpenses();
-            fetchPayments(); // Ensure we have payments for income calculation
+            const timeoutId = setTimeout(() => {
+                fetchExpenses();
+                fetchAllExpenses();
+                fetchPayments(); // Ensure we have payments for income calculation
+            }, 0);
+
+            return () => clearTimeout(timeoutId);
         }
-    }, [activeSection, expenseMonth]);
+    }, [activeSection, fetchAllExpenses, fetchExpenses, fetchPayments]);
 
     const handleLogout = () => {
-        localStorage.removeItem('user');
-        localStorage.removeItem('role');
-        navigate('/');
+        logout();
     };
 
     const handleNavClick = (section) => {
@@ -163,13 +161,7 @@ function AdminDashboard() {
 
     const handleStatusUpdate = async (id, newStatus) => {
         try {
-            const response = await fetch(`http://localhost:8081/api/maintenance/${id}/status`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: newStatus,
-            });
+            const response = await api.put(`/maintenance/${id}/status`, { status: newStatus });
 
             if (response.ok) {
                 fetchData(); // Refresh data
@@ -191,10 +183,7 @@ function AdminDashboard() {
                 const formData = new FormData();
                 formData.append('file', selectedFile);
 
-                const uploadResponse = await fetch('http://localhost:8081/api/files/upload', {
-                    method: 'POST',
-                    body: formData,
-                });
+                const uploadResponse = await api.postFile('/files/upload', formData);
 
                 if (uploadResponse.ok) {
                     fileData = await uploadResponse.json();
@@ -215,13 +204,7 @@ function AdminDashboard() {
                 })
             };
 
-            const response = await fetch(`http://localhost:8081/api/chat/send?senderUsername=${user}&recipientUsername=${selectedChatUser}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(messageData),
-            });
+            const response = await api.post(`/chat/send?senderUsername=${user}&recipientUsername=${selectedChatUser}`, messageData);
 
             if (response.ok) {
                 setNewMessage('');
@@ -247,15 +230,9 @@ function AdminDashboard() {
 
     const handlePaymentStatusUpdate = async (paymentId, isPaid) => {
         try {
-            const response = await fetch(`http://localhost:8081/api/payments/${paymentId}/status`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    isPaid: isPaid,
-                    paymentDate: isPaid ? new Date().toISOString().split('T')[0] : null
-                }),
+            const response = await api.put(`/payments/${paymentId}/status`, {
+                isPaid: isPaid,
+                paymentDate: isPaid ? new Date().toISOString().split('T')[0] : null
             });
 
             if (response.ok) {
@@ -284,13 +261,7 @@ function AdminDashboard() {
             console.log('Sending payment data:', paymentData);
             console.log('URL:', `http://localhost:8081/api/payments?username=${newPayment.username}`);
 
-            const response = await fetch(`http://localhost:8081/api/payments?username=${newPayment.username}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(paymentData),
-            });
+            const response = await api.post(`/payments?username=${newPayment.username}`, paymentData);
 
             console.log('Response status:', response.status);
 
@@ -317,9 +288,7 @@ function AdminDashboard() {
         }
 
         try {
-            const response = await fetch(`http://localhost:8081/api/payments/${paymentId}`, {
-                method: 'DELETE',
-            });
+            const response = await api.delete(`/payments/${paymentId}`);
 
             if (response.ok) {
                 alert('Payment deleted successfully!');
@@ -336,13 +305,21 @@ function AdminDashboard() {
 
     useEffect(() => {
         if (activeSection === 'messages' && selectedChatUser) {
-            fetchChatHistory(selectedChatUser);
+            const timeoutId = setTimeout(() => {
+                fetchChatHistory(selectedChatUser);
+            }, 0);
             const interval = setInterval(() => fetchChatHistory(selectedChatUser), 5000);
-            return () => clearInterval(interval);
+            return () => {
+                clearTimeout(timeoutId);
+                clearInterval(interval);
+            };
         } else if (activeSection === 'payments') {
-            fetchPayments();
+            const timeoutId = setTimeout(() => {
+                fetchPayments();
+            }, 0);
+            return () => clearTimeout(timeoutId);
         }
-    }, [activeSection, selectedChatUser, user]);
+    }, [activeSection, fetchChatHistory, fetchPayments, selectedChatUser]);
 
     const getStats = () => {
         const totalUsers = users.length;
@@ -400,15 +377,6 @@ function AdminDashboard() {
                                         />
                                     </div>
                                     <div className="form-group">
-                                        <label>Password</label>
-                                        <input
-                                            type="password"
-                                            value={newUser.password}
-                                            onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="form-group">
                                         <label>Email</label>
                                         <input
                                             type="email"
@@ -431,6 +399,9 @@ function AdminDashboard() {
                                         <button type="submit" className="btn btn-primary" style={{ marginTop: '24px' }}>Add User</button>
                                     </div>
                                 </div>
+                                <p style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>
+                                    New users are created with the default password <strong>welcome123</strong>.
+                                </p>
                             </form>
                         </div>
 
@@ -633,13 +604,16 @@ function AdminDashboard() {
                                         </select>
                                     </div>
                                     <div className="form-group">
-                                        <label>Month (YYYY-MM)</label>
+                                        <label>Billing Month</label>
                                         <input
                                             type="month"
                                             value={newPayment.month}
                                             onChange={(e) => setNewPayment({ ...newPayment, month: e.target.value })}
                                             required
                                         />
+                                        <small style={{ color: 'var(--text-secondary)' }}>
+                                            Choose the month and year from the picker.
+                                        </small>
                                     </div>
                                     <div className="form-group">
                                         <label>Amount (₹)</label>
@@ -707,7 +681,7 @@ function AdminDashboard() {
                         <p>Configure system-wide settings and preferences.</p>
                     </div>
                 );
-            case 'expenses':
+            case 'expenses': {
                 // Calculate Income from Payments
                 const filteredPayments = payments.filter(p => p.month === expenseMonth && p.isPaid);
                 const totalIncome = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
@@ -836,6 +810,7 @@ function AdminDashboard() {
                         </div>
                     </div>
                 );
+            }
             default:
                 return null;
         }
@@ -937,4 +912,3 @@ function AdminDashboard() {
 }
 
 export default AdminDashboard;
-
