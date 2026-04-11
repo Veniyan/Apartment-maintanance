@@ -38,4 +38,5 @@ backend/uploads/
 # Environment
 *.env
 .env.local
+en.env
 .aider*

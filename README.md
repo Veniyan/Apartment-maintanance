@@ -28,7 +28,7 @@ A full-stack web application for managing apartment maintenance requests, paymen
 ### Backend
 - **Java 24** with Spring Boot 3.2.3
 - **Spring Data JPA** for database operations
-- **H2 Database** (in-memory for development)
+- **PostgreSQL** for persistent storage
 - **Spring Security** with BCrypt password encoding
 - **Maven** for dependency management
 
@@ -55,11 +55,16 @@ cd apartmentmaintanance
 
 ### 2. Backend Setup
 ```bash
+cp .env.example .env
+# fill in your PostgreSQL / Aiven credentials in .env
 cd backend
 mvn clean install
 mvn spring-boot:run
 ```
 The backend will start on `http://localhost:8081`
+
+By default the backend now uses PostgreSQL via the values in `.env`.
+If you want the old in-memory database for local-only work, set `SPRING_PROFILES_ACTIVE=h2`.
 
 ### 3. Frontend Setup
 ```bash
@@ -179,8 +184,6 @@ npm run build
 ```
 
 ## Future Enhancements
-
-- [ ] Persistent database (PostgreSQL/MySQL)
 - [ ] Email notifications
 - [ ] Payment gateway integration
 - [ ] Mobile responsive design improvements
